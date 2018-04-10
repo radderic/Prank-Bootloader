@@ -1,8 +1,3 @@
-;use nasm to compile:   nasm filename.asm -f bin -o filename.bin
-;use dd to put on usb(whether it is /dev/sdb or what):  sudo dd if=./filename.bin of=/dev/sdx
-;recommend trying in qemu or virtualbox first before trying usb
-;I had to enable legacy mode in the bios for my usb to be used. Might have to disable secure boot too.
-;only works on x86 computers
 
 [org 0x7c00]
 
@@ -37,15 +32,13 @@ write_string:
     mov ah, 0x2     ;use function to change cursor position
     int 0x10        ;change cursor position
 .printloop:
-    lodsb           ;does this: http://faydoc.tripod.com/cpu/lodsb.htm
+    lodsb           ;loads first char into al, increments pointer using si
     mov ah, 0x9     ;use character write function with attribute
     cmp al, 0       ;check for not null
     je .end
     int 0x10        ;write character
     call move_cursor
     call change_color
-    mov ah, 0x2
-    int 0x10
 .keepColor:
     jmp .printloop
 .end:
