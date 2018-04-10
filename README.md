@@ -10,10 +10,10 @@ use dd to put on usb(whether it is /dev/sdb or what):
 sudo dd if=./filename.bin of=/dev/sdx
 ```
 
-*I recommend trying in qemu or virtualbox first before trying usb
+* I recommend trying in qemu or virtualbox first before trying usb
 
-*I had to enable legacy mode in the bios for my usb to be used. Might have to disable secure boot too.
+* I had to enable legacy mode in the bios for my usb to be used. Might have to disable secure boot too.
 
-*Only works on x86 computers
+* Only works on x86 computers
 
 
