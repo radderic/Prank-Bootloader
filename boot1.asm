@@ -53,7 +53,6 @@ print_color_string:
     int 0x10        ;write character
     call move_cursor
     call change_color
-.keepColor:
     jmp .printLoop
 .endPrint:
     ret

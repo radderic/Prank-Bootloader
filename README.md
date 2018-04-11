@@ -10,7 +10,7 @@ use dd to put on usb(whether it is /dev/sdb or what):
 sudo dd if=./filename.bin of=/dev/sdx
 ```
 
-#Sample picture
+# Sample picture
 ![send nudes](./boot.png)
 
 * I recommend trying in qemu or virtualbox first before trying usb
