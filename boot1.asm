@@ -3,6 +3,7 @@
 [bits 16]
 
 start:
+    mov [disk], dl
     jmp main
 
 main:
@@ -14,26 +15,57 @@ main:
     mov dl, 10              ;set column
     mov si, hello           ;set string to print
     call print_color_string
+
     mov dh, 11              ;set row
     mov dl, 10              ;set column
     mov si, lil_shit        ;set string to print
     call print_color_string
 
-    mov dh, 12
+    mov dh, 15
     mov dl, 10
     call move_cursor
-    mov ax, hello
-    call print_hex
+    mov si, test
+    call print_color_string
 
-    mov dh, 13
+;    mov dh, 12
+;    mov dl, 10
+;    call move_cursor
+;    mov ax, hello
+;    call print_hex
+
+;    mov dh, 12
+;    mov dl, 10
+;    call move_cursor
+;    mov ax, test
+;    call print_hex
+
+;    mov dh, 13
+;    mov dl, 10
+;    call move_cursor
+;    mov ax, disk
+;    call print_hex
+
+;    mov dh, 14
+;    mov dl, 10
+;    call move_cursor
+;    mov si, test
+;    call print_color_string
+
+;    jmp stage2
+
+    call read_disk
+
+    mov dh, 15
     mov dl, 10
     call move_cursor
-    mov ax, 0xbeef
-    call print_hex
+    mov si, test
+    call print_color_string
+
 
     cli                     ;clear interrupts
     hlt                     ;halt cpu
 
+disk:           db 0
 hello:          db 'Hello world',0
 lil_shit:       db 'LISTEN HERE YOU LITTLE SHIT',0
 hex_table:      db '0123456789ABCDEF',0
@@ -107,5 +139,37 @@ print_hex:
 .endHexPrint:
     ret
 
+read_disk:
+    mov ah, 0
+    int 0x13        ;reset disk
+    mov ah, 0x02
+    mov dl, [disk]  ;select the disk
+    mov ch, 0       ;cylinder
+    mov dh, 0       ;head
+    mov cl, 2       ;sector
+    mov al, 1       ;num of sectors to read
+    mov bx, test
+    int 0x13
+    jc disk_error
+    cmp al, 1
+    jne disk_error
+;    jmp stage2
+    ret
+
+disk_error:
+    mov ah, 1
+    int 0x13
+    mov si, error
+    call print_color_string
+    call print_hex
+    ret
+
+;test: db 'test',0
+error: db 'error',0
+
 times 510-($-$$) db 0
 dw 0xaa55
+test:   db  'test',0
+test2:  db  4
+
+times 2048-($-$$) db 0
