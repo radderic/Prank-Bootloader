@@ -3,14 +3,13 @@
 [bits 16]
 
 start:
-    mov [disk], dl
     jmp main
 
 main:
     ;int 0x10 functions in use:
     ;Write character and attribute at cursor position   AH=09h  AL = Character, BH = Page Number, BL = Color, CX = Number of times to print character
     ;Set cursor position    AH=02h  BH = Page Number, DH = Row, DL = Column
-
+    mov [disk], dl
     mov dh, 10              ;set row
     mov dl, 10              ;set column
     mov si, hello           ;set string to print
@@ -27,31 +26,11 @@ main:
     mov si, test
     call print_color_string
 
-;    mov dh, 12
-;    mov dl, 10
-;    call move_cursor
-;    mov ax, hello
-;    call print_hex
-
-;    mov dh, 12
-;    mov dl, 10
-;    call move_cursor
-;    mov ax, test
-;    call print_hex
-
-;    mov dh, 13
-;    mov dl, 10
-;    call move_cursor
-;    mov ax, disk
-;    call print_hex
-
-;    mov dh, 14
-;    mov dl, 10
-;    call move_cursor
-;    mov si, test
-;    call print_color_string
-
-;    jmp stage2
+    mov dh, 12
+    mov dl, 10
+    call move_cursor
+    mov ax, 0xbeef
+    call print_hex
 
     call read_disk
 
@@ -60,7 +39,6 @@ main:
     call move_cursor
     mov si, test
     call print_color_string
-
 
     cli                     ;clear interrupts
     hlt                     ;halt cpu
@@ -140,20 +118,21 @@ print_hex:
     ret
 
 read_disk:
-    mov ah, 0
-    int 0x13        ;reset disk
+;    mov ah, 0
+;    int 0x13        ;reset disk
     mov ah, 0x02
     mov dl, [disk]  ;select the disk
     mov ch, 0       ;cylinder
     mov dh, 0       ;head
     mov cl, 2       ;sector
     mov al, 1       ;num of sectors to read
+    mov bx, 0
+    mov es, bx
     mov bx, test
     int 0x13
     jc disk_error
     cmp al, 1
     jne disk_error
-;    jmp stage2
     ret
 
 disk_error:
@@ -161,7 +140,6 @@ disk_error:
     int 0x13
     mov si, error
     call print_color_string
-    call print_hex
     ret
 
 ;test: db 'test',0
