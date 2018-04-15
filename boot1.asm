@@ -1,54 +1,93 @@
+;--------------------------------------------------------------
+; This is not meant to be a serious thing.
+; It's not really even a bootloader.
+; Just proof of concept things for me to try out in real mode.
+; The more I lean the more fun this becomes.
+;--------------------------------------------------------------
 
 [org 0x7c00]
 [bits 16]
 
-start:
-    jmp main
-
 main:
-    ;int 0x10 functions in use:
-    ;Write character and attribute at cursor position   AH=09h  AL = Character, BH = Page Number, BL = Color, CX = Number of times to print character
-    ;Set cursor position    AH=02h  BH = Page Number, DH = Row, DL = Column
-    mov [disk], dl
+
+    ;set up ds correctly?
+    ;save drive id
+    mov [drive], dl
+
+    ;testing color printing
     mov dh, 10              ;set row
     mov dl, 10              ;set column
     mov si, hello           ;set string to print
-    call print_color_string
+    call print_rainbow_string
 
-    mov dh, 11              ;set row
-    mov dl, 10              ;set column
-    mov si, lil_shit        ;set string to print
-    call print_color_string
+    mov al, 8               ;2 seconds
+    call delay
 
-    mov dh, 15
+    ;more color printing
+    mov dh, 11
     mov dl, 10
-    call move_cursor
-    mov si, test
-    call print_color_string
+    mov si, lil_shit
+    call print_rainbow_string
 
+    mov al, 16              ;4 seconds
+    call delay
+
+    ;this doesn't work irl. Only works in qemu
+    ;probably will need to mess with 0xb8000
+    mov al, 3               ;cyan
+    call set_background_color
+
+    ;testing hex printing
     mov dh, 12
     mov dl, 10
     call move_cursor
     mov ax, 0xbeef
     call print_hex
 
-    call read_disk
+    ;EVEN MORE TESTING
+    mov dh, 12
+    mov dl, 18
+    call move_cursor
+    mov ax, 0xdead
+    call print_hex
 
-    mov dh, 15
+    ;testing reading, will load seg2
+    mov [read_sector], byte 2
+    mov [read_loc], word seg2
+    call read_drive
+
+    ;if read, this string will be printable
+    mov dh, 13
     mov dl, 10
     call move_cursor
-    mov si, test
-    call print_color_string
+    mov si, read_success
+    call print_rainbow_string
+
+    ;seg2 is still in memory
+    ;change byte value in memory then write back
+    mov [write_here], word 'hi'
+;    mov [write_here], word 0
+
+    ;write back seg2 to second segment on drive
+    mov [write_sector], byte 2
+    mov [write_from], word seg2
+    call write_drive
+
+    ;see our newly written word in drive
+    mov dh, 14
+    mov dl, 10
+    mov si, write_here
+    call print_rainbow_string
 
     cli                     ;clear interrupts
     hlt                     ;halt cpu
 
-disk:           db 0
+drive:          db 0
 hello:          db 'Hello world',0
 lil_shit:       db 'LISTEN HERE YOU LITTLE SHIT',0
 hex_table:      db '0123456789ABCDEF',0
 
-print_color_string:
+print_rainbow_string:
     ;initialize values
     mov bh, 0       ;page 0
     mov bl, 0x9     ;set starting color: https://en.wikipedia.org/wiki/BIOS_color_attributes
@@ -117,37 +156,90 @@ print_hex:
 .endHexPrint:
     ret
 
-read_disk:
-;    mov ah, 0
-;    int 0x13        ;reset disk
+read_sector:    db 0
+read_loc:       dw 0
+
+read_drive:
+    mov ah, 0
+    int 0x13        ;reset drive
     mov ah, 0x02
-    mov dl, [disk]  ;select the disk
+    mov dl, [drive]  ;select the drive
     mov ch, 0       ;cylinder
     mov dh, 0       ;head
-    mov cl, 2       ;sector
+    mov cl, [read_sector];sector
     mov al, 1       ;num of sectors to read
-    mov bx, 0
+    xor bx, bx
     mov es, bx
-    mov bx, test
+    mov bx, [read_loc]
     int 0x13
-    jc disk_error
+    jc drive_error
     cmp al, 1
-    jne disk_error
+    jne drive_error
     ret
 
-disk_error:
+drive_error:
     mov ah, 1
     int 0x13
     mov si, error
-    call print_color_string
+    call print_rainbow_string
     ret
 
-;test: db 'test',0
+write_sector:   db 0
+write_from:     dw 0
+
+write_drive:
+    mov ah, 0
+    int 0x13        ;reset drive
+    mov ah, 0x03
+    mov dl, [drive]
+    mov ch, 0
+    mov dh, 0
+    mov cl, [write_sector]
+    mov al, 1
+    xor bx, bx
+    mov es, bx
+    mov bx, [write_from]
+    int 0x13
+    jc drive_error
+    cmp al, 1
+    jne drive_error
+    ret
+
+;waits a quarter second, though is looped to do greater values
+;argument al = repeat count, max value is 0xff
+delay:
+    mov ah, 0x86
+    ;quarter second = 0x3D090
+    mov cx, 0x0003  ;upper
+    mov dx, 0xD090  ;lower
+    xor bx, bx      ;counter
+.waitLoop:
+    cmp al, bl
+    je .waitDone
+    int 0x15
+    inc bl
+    jmp .waitLoop
+.waitDone:
+    ret
+
+;set by al
+set_background_color:
+    ;change background color
+    mov bl, al  ;set color
+    mov ah, 0x0b
+    mov bh, 0
+    int 0x10
+    ret
+
 error: db 'error',0
 
 times 510-($-$$) db 0
 dw 0xaa55
-test:   db  'test',0
-test2:  db  4
+seg2:
+read_success:       db 'Read successful',0
+write_here: dw 0
 
+;makes sure there is enough to read from
+;otherwise it will fail on boot
 times 2048-($-$$) db 0
+
