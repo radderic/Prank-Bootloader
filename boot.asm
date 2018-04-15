@@ -5,14 +5,17 @@
 ; The more I lean the more fun this becomes.
 ;--------------------------------------------------------------
 
-[org 0x7c00]
 [bits 16]
+;[org 0x7c00]
+[org 0x0]
 
 main:
-
-    ;set up ds correctly?
     ;save drive id
     mov [drive], dl
+
+    ;set ds
+    mov ax, 0x7c0
+    mov ds, ax
 
     ;testing color printing
     mov dh, 10              ;set row
