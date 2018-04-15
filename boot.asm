@@ -6,16 +6,31 @@
 ;--------------------------------------------------------------
 
 [bits 16]
-;[org 0x7c00]
-[org 0x0]
+[org 0x7c00]
+
+start:
+    cli     ;prevent interrupts
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    jmp main
 
 main:
-    ;save drive id
-    mov [drive], dl
-
+    sti
     ;set ds
-    mov ax, 0x7c0
-    mov ds, ax
+;    xor ax, ax
+;    mov ax, 0x7c0
+;    mov ds, ax
+;    mov es, ax
+;    mov ax, 0x7c0
+;    mov ss, ax
+
+    ;save drive id
+    mov byte [drive], dl
+
+    call clear_screen
+
+    call set_video_mem
 
     ;testing color printing
     mov dh, 10              ;set row
@@ -37,8 +52,8 @@ main:
 
     ;this doesn't work irl. Only works in qemu
     ;probably will need to mess with 0xb8000
-    mov al, 3               ;cyan
-    call set_background_color
+;    mov al, 3               ;cyan
+;    call set_background_color
 
     ;testing hex printing
     mov dh, 12
@@ -231,6 +246,41 @@ set_background_color:
     mov bl, al  ;set color
     mov ah, 0x0b
     mov bh, 0
+    int 0x10
+    ret
+
+;sets colors via video memory at 0xb8000 aka 0xb800:0000
+;first byte is char, next byte is colors
+;second byte: background is top 4 bits, foreground is last 4 bits
+;colors in al
+set_video_mem:
+    push ds
+    mov bx, 0xb800
+    mov ds, bx
+    ;change 4000/2 bytes
+    ;for now just change a single byte
+    mov [ds:0x1], byte 0xe1  ;bg: blue, fg: yellow
+    mov [ds:0x3], byte 0xe1  ;bg: blue, fg: yellow
+    mov [ds:0x5], byte 0xe1  ;bg: blue, fg: yellow
+    ;fix ds
+    pop ds
+    ret
+
+;doesn't work or something
+;in video mode 3(default) the dimensions are 80x25
+clear_screen:
+    mov ah, 0x6
+    mov al, 0       ;clear all rows
+    mov bh, 0x07    ;attributes, black/grey
+    xor cx, cx      ;0x0 upper left
+    mov dh, 0x18    ;bottom right row
+    mov dl, 0x4f    ;bottom right column
+    int 0x10
+    ret
+
+set_video_mode:
+    xor ax, ax
+    mov al, 0x3 ;80x25, text mode
     int 0x10
     ret
 
