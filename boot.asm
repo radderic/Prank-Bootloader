@@ -8,25 +8,19 @@
 [bits 16]
 [org 0x7c00]
 
+
+;works if all are commented out
 start:
-    cli     ;prevent interrupts
     xor ax, ax
     mov ds, ax
     mov es, ax
+    mov ss, ax
+    mov sp, 0x7c00  ;sets stack below
     jmp main
 
 main:
-    sti
-    ;set ds
-;    xor ax, ax
-;    mov ax, 0x7c0
-;    mov ds, ax
-;    mov es, ax
-;    mov ax, 0x7c0
-;    mov ss, ax
-
     ;save drive id
-    mov byte [drive], dl
+    mov [drive], byte dl
 
     call clear_screen
 
@@ -36,7 +30,7 @@ main:
     mov dh, 10              ;set row
     mov dl, 10              ;set column
     mov si, hello           ;set string to print
-    call print_rainbow_string
+    call rainbow_print
 
     mov al, 8               ;2 seconds
     call delay
@@ -45,29 +39,10 @@ main:
     mov dh, 11
     mov dl, 10
     mov si, lil_shit
-    call print_rainbow_string
+    call rainbow_print
 
     mov al, 16              ;4 seconds
     call delay
-
-    ;this doesn't work irl. Only works in qemu
-    ;probably will need to mess with 0xb8000
-;    mov al, 3               ;cyan
-;    call set_background_color
-
-    ;testing hex printing
-    mov dh, 12
-    mov dl, 10
-    call move_cursor
-    mov ax, 0xbeef
-    call print_hex
-
-    ;EVEN MORE TESTING
-    mov dh, 12
-    mov dl, 18
-    call move_cursor
-    mov ax, 0xdead
-    call print_hex
 
     ;testing reading, will load seg2
     mov [read_sector], byte 2
@@ -79,12 +54,11 @@ main:
     mov dl, 10
     call move_cursor
     mov si, read_success
-    call print_rainbow_string
+    call rainbow_print
 
     ;seg2 is still in memory
     ;change byte value in memory then write back
     mov [write_here], word 'hi'
-;    mov [write_here], word 0
 
     ;write back seg2 to second segment on drive
     mov [write_sector], byte 2
@@ -92,10 +66,10 @@ main:
     call write_drive
 
     ;see our newly written word in drive
-    mov dh, 14
+    mov dh, 15
     mov dl, 10
     mov si, write_here
-    call print_rainbow_string
+    call rainbow_print
 
     cli                     ;clear interrupts
     hlt                     ;halt cpu
@@ -105,7 +79,7 @@ hello:          db 'Hello world',0
 lil_shit:       db 'LISTEN HERE YOU LITTLE SHIT',0
 hex_table:      db '0123456789ABCDEF',0
 
-print_rainbow_string:
+rainbow_print:
     ;initialize values
     mov bh, 0       ;page 0
     mov bl, 0x9     ;set starting color: https://en.wikipedia.org/wiki/BIOS_color_attributes
@@ -149,25 +123,25 @@ change_color:
 
 ;initial value comes in at ax
 print_hex:
-    mov cx, 0       ;count number of hex chars
+    mov cx, 0               ;count number of hex chars
 .hexLoop:
     cmp cx, 4
     je .hexPrint
-    mov dx, ax      ;save hex value in dx
-    and dx, 0xf     ;and with 15 to get first char
-    push dx         ;save hex value on stack
-    shr ax, 4       ;shift right 4 bits
+    mov dx, ax              ;save hex value in dx
+    and dx, 0xf             ;and with 15 to get first char
+    push dx                 ;save hex value on stack
+    shr ax, 4               ;shift right 4 bits
     inc cx
     jmp .hexLoop
 .hexPrint:
     cmp cx, 0
     je .endHexPrint
     mov bx, hex_table
-    pop ax          ;hex char will be in al only
-    add bx, ax      ;add with pointer to array to get char
-    mov al, [bx]    ;move char to register
-    xor bx, bx      ;make 0
-    mov ah, 0x0e    ;get ready to print
+    pop ax                  ;hex char will be in al only
+    add bx, ax              ;add with pointer to array to get char
+    mov al, [bx]            ;move char to register
+    xor bx, bx              ;make 0
+    mov ah, 0x0e            ;get ready to print
     int 0x10
     dec cx
     jmp .hexPrint
@@ -178,14 +152,12 @@ read_sector:    db 0
 read_loc:       dw 0
 
 read_drive:
-    mov ah, 0
-    int 0x13        ;reset drive
     mov ah, 0x02
-    mov dl, [drive]  ;select the drive
-    mov ch, 0       ;cylinder
-    mov dh, 0       ;head
-    mov cl, [read_sector];sector
-    mov al, 1       ;num of sectors to read
+    mov dl, byte [drive]    ;select the drive
+    mov ch, 0               ;cylinder
+    mov dh, 0               ;head
+    mov cl, [read_sector]   ;sector
+    mov al, 1               ;num of sectors to read
     xor bx, bx
     mov es, bx
     mov bx, [read_loc]
@@ -199,29 +171,11 @@ drive_error:
     mov ah, 1
     int 0x13
     mov si, error
-    call print_rainbow_string
+    call rainbow_print
     ret
 
 write_sector:   db 0
 write_from:     dw 0
-
-write_drive:
-    mov ah, 0
-    int 0x13        ;reset drive
-    mov ah, 0x03
-    mov dl, [drive]
-    mov ch, 0
-    mov dh, 0
-    mov cl, [write_sector]
-    mov al, 1
-    xor bx, bx
-    mov es, bx
-    mov bx, [write_from]
-    int 0x13
-    jc drive_error
-    cmp al, 1
-    jne drive_error
-    ret
 
 ;waits a quarter second, though is looped to do greater values
 ;argument al = repeat count, max value is 0xff
@@ -258,7 +212,7 @@ set_video_mem:
     mov bx, 0xb800
     mov ds, bx
     ;change 4000/2 bytes
-    ;for now just change a single byte
+    ;for now just change a few bytes for now
     mov [ds:0x1], byte 0xe1  ;bg: blue, fg: yellow
     mov [ds:0x3], byte 0xe1  ;bg: blue, fg: yellow
     mov [ds:0x5], byte 0xe1  ;bg: blue, fg: yellow
@@ -284,15 +238,45 @@ set_video_mode:
     int 0x10
     ret
 
+read_input:
+.inputLoop:
+    xor ax, ax
+    int 0x16
+;    mov [user_input], byte al
+    ret
+
 error: db 'error',0
 
 times 510-($-$$) db 0
 dw 0xaa55
 seg2:
 read_success:       db 'Read successful',0
-write_here: dw 0
+write_success:      db 'Write successful',0
+write_here: times 2 dw 0
+
+write_drive:
+    mov ah, 0x03
+    mov dl, byte [drive]
+    mov ch, 0
+    mov dh, 0
+    mov cl, [write_sector]
+    mov al, 1
+    xor bx, bx
+    mov es, bx
+    mov bx, [write_from]
+    int 0x13
+    jc drive_error
+    cmp al, 1
+    jne drive_error
+    mov dh, 14              ;set row
+    mov dl, 10              ;set column
+    mov si, write_success
+    call rainbow_print
+    ret
+
+
 
 ;makes sure there is enough to read from
 ;otherwise it will fail on boot
-times 2048-($-$$) db 0
+times 4096-($-$$) db 0
 
