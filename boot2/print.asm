@@ -22,6 +22,7 @@ main:
     mov [input_bound], byte 25
     call user_input
 
+    mov [delay_time], byte 1
     mov [row], byte 9
     mov [column], byte 25
     call move_cursor

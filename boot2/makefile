@@ -13,7 +13,7 @@ debug : $(filename).bin
 	konsole -e gdb $(gdbflags) gdbcommands.txt
 	qemu-system-i386 $(debug) $(filename).bin
 
-write : $(filename).bin
+flash : $(filename).bin
 	sudo dd if=./$(filename).bin of=/dev/sdb
 
 read :
