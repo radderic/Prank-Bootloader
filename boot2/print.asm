@@ -31,25 +31,8 @@ main:
     mov si, input
     call color_print
 
-    mov [row], byte 10
-    mov [column], byte 25
-    call move_cursor
-    mov [input_bound], byte 25
-    call user_input
-
-    mov [row], byte 11
-    mov [column], byte 25
-    call move_cursor
-    mov al, [light_green]
-    mov byte [color], al
-    mov si, input
-    call color_print
-
     cli                     ;clear interrupts
     hlt                     ;halt cpu
-
-hello:          db 'Hello world',0
-error:          db 'CRITICAL ERROR: DELETING DRIVE CONTENTS',0
 
 ;colors
 black:          db 0x0
