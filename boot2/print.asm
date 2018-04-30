@@ -5,15 +5,39 @@
 [bits 16]
 [org 0x7c00]
 
+;first 3 bytes
+jmp start
+nop
+;---------------------------+
+;bios parameter block       |
+;---------------------------+
+OEMIdentifier:              db  'POOPPOOP'
+BytesPerSector:             dw  512
+SectorsPerCluster:          db  1
+ReservedSectorsNum:         dw  1
+FATNum:                     db  2
+RootEntries:                dw  224 ;???
+TotalSectors:               dw  2880
+MediaDescriptorType:        db  0xf8 ;hard disk = f8, floppies = f0
+SectorsPerFAT:              dw  9
+SectorsPerTrack:            dw  18
+HeadNum:                    dw  2
+HiddenSectorNum:            dd  0
+LargeSectorNum:             dd  0
+DriveNumber:                db  0
+Reserved:                   db  0
+Signature:                  db  0x29
+VolumeID:                   dd  0xdeadbeef
+VolumeLabel:                db  'hello world'
+FileSystem:                 db  'FAT12   '
+
 start:
     xor ax, ax
     mov ds, ax
     mov es, ax
     mov ss, ax
     mov sp, 0x7c00  ;sets stack below
-    jmp main
 
-main:
     call clear_screen
 
     mov [row], byte 8
@@ -30,6 +54,9 @@ main:
     mov byte [color], al
     mov si, input
     call color_print
+
+    mov [beep_count], byte 5
+    call beep
 
     cli                     ;clear interrupts
     hlt                     ;halt cpu
@@ -126,6 +153,7 @@ set_video_mem:
 
 ;in video mode 3(default) the dimensions are 80x25
 clear_screen:
+    pusha
     mov ah, 0x6
     mov al, 0       ;clear all rows
     mov bh, 0x07    ;attributes, black/grey
@@ -133,9 +161,11 @@ clear_screen:
     mov dh, 0x18    ;bottom right row
     mov dl, 0x4f    ;bottom right column
     int 0x10
+    popa
     ret
 
 set_video_mode:
+    pusha
     xor ax, ax
     mov al, 0x3     ;80x25, text mode
     int 0x10
@@ -144,9 +174,9 @@ set_video_mode:
 key_pressed:    db 0
 input_color:    db 0
 input_bound:    dw 0
-input:          times 30 db 0
+input:          resb 30
 
-;Write character and attribute at cursor position   AH=09h  AL = Character, BH = Page Number, BL = Color, CX = Number of times to print character
+
 write_char:
     pusha
     mov ah, 0x9
@@ -223,7 +253,10 @@ beep:
     mov [delay_time], byte 0x1
     call delay
     in  al, 0x61
-    and al, 0xFC
+    and al, 0xfc
+    out 0x61, al
+    in  al, 0x61
+    and al, 0xfd    ;try both
     out 0x61, al
     call delay
     inc cx
@@ -236,4 +269,3 @@ beep_count: db 1
 
 times 510-($-$$) db 0
 dw 0xaa55
-
