@@ -11,7 +11,7 @@ nop
 ;---------------------------+
 ;bios parameter block       |
 ;---------------------------+
-OEMIdentifier:              db  'POOPPOOP'
+OEMIdentifier:              db  'POOPBUTT'
 BytesPerSector:             dw  512
 SectorsPerCluster:          db  1
 ReservedSectorsNum:         dw  1
@@ -40,26 +40,44 @@ start:
 
     call clear_screen
 
+    mov [row], byte 7
+    mov [column], byte 25
+    mov [color], byte 0x9
+    mov si, msg
+    call color_print
+
     mov [row], byte 8
     mov [column], byte 25
     call move_cursor
-    mov [input_bound], byte 25
+    mov [input_bound], byte 20
     call user_input
 
-    mov [delay_time], byte 1
-    mov [row], byte 9
-    mov [column], byte 25
-    call move_cursor
-    mov al, [light_blue]
-    mov byte [color], al
     mov si, input
-    call color_print
+    mov di, hello
+    call compare_str
 
-    mov [beep_count], byte 5
-    call beep
+    mov [row], byte 10
+    mov [column], byte 25
+    mov [color], byte 0xa
+    mov si, equalStr
+    cmp al, 1
+    jne .strNotEqual
+.compareEnd:
+    jmp .theEnd
+.strNotEqual:
+    mov [color], byte 0x4
+    mov si, notEqual
+    jmp .compareEnd
+.theEnd:
+    call color_print
 
     cli                     ;clear interrupts
     hlt                     ;halt cpu
+
+msg:        db  "Type 'hello' for equal",0
+equalStr:   db  'They are equal',0
+notEqual:   db  'Not equal',0
+hello:  db  'hello',0
 
 ;colors
 black:          db 0x0
@@ -136,21 +154,6 @@ move_cursor:
     popa
     ret
 
-;sets colors via video memory at 0xb8000 aka 0xb800:0000
-;first byte is char, next byte is colors
-;second byte: background is top 4 bits, foreground is last 4 bits
-set_video_mem:
-    push ds
-    mov bx, 0xb800
-    mov ds, bx
-    ;change 4000/2 bytes
-    ;for now just change a few bytes for now
-    mov [ds:0x1], byte 0xe1  ;bg: blue, fg: yellow
-    mov [ds:0x3], byte 0xe1  ;bg: blue, fg: yellow
-    mov [ds:0x5], byte 0xe1  ;bg: blue, fg: yellow
-    pop ds
-    ret
-
 ;in video mode 3(default) the dimensions are 80x25
 clear_screen:
     pusha
@@ -163,19 +166,10 @@ clear_screen:
     int 0x10
     popa
     ret
-
-set_video_mode:
-    pusha
-    xor ax, ax
-    mov al, 0x3     ;80x25, text mode
-    int 0x10
-    ret
-
 key_pressed:    db 0
 input_color:    db 0
 input_bound:    dw 0
-input:          resb 30
-
+input:          resb 20
 
 write_char:
     pusha
@@ -240,6 +234,36 @@ delete_char:
     popa
     ret
 
+
+;comapares two memory locations which hold strings
+;bx = index
+;si = location 1
+;di = location 2
+;returns 1 in al if equal, 0 if not
+compare_str:
+    pusha
+    xor bx, bx
+.compareLoop:
+    mov al, byte [si+bx]
+    mov ah, byte [di+bx]
+    cmp al, ah
+    jne .notEqual
+    or al, 0
+    jz .end
+    inc bx
+    jmp .compareLoop
+.end:
+    popa
+    mov al, 1
+    ret
+.notEqual:
+    popa
+    mov al, 0
+    ret
+
+times 510-($-$$) db 0
+dw 0xaa55
+
 ;found on internet
 beep:
     pusha
@@ -267,5 +291,26 @@ beep:
 
 beep_count: db 1
 
-times 510-($-$$) db 0
-dw 0xaa55
+;sets colors via video memory at 0xb8000 aka 0xb800:0000
+;first byte is char, next byte is colors
+;second byte: background is top 4 bits, foreground is last 4 bits
+set_video_mem:
+    push ds
+    mov bx, 0xb800
+    mov ds, bx
+    ;change 4000/2 bytes
+    ;for now just change a few bytes for now
+    mov [ds:0x1], byte 0xe1  ;bg: blue, fg: yellow
+    mov [ds:0x3], byte 0xe1  ;bg: blue, fg: yellow
+    mov [ds:0x5], byte 0xe1  ;bg: blue, fg: yellow
+    pop ds
+    ret
+
+set_video_mode:
+    pusha
+    xor ax, ax
+    mov al, 0x3     ;80x25, text mode
+    int 0x10
+    ret
+
+
