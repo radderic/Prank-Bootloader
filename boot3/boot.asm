@@ -1,5 +1,6 @@
 ;-----------------------------------
-;An amalgamation of previous bootloaders
+; An amalgamation of previous bootloaders
+; Soon to be a prank bootloader
 ;-----------------------------------
 
 [bits 16]
@@ -121,7 +122,7 @@ clear_screen:
 set_default_video_mode:
     pusha
     xor ax, ax
-    mov al, 0x3     ;80x25, text mode
+    mov al, 0x3
     int 0x10
     popa
     ret
@@ -211,7 +212,7 @@ drive:              db 0
 read_sector:        db 0
 sectors_num:        db 0
 read_loc:           dw 0
-drive_error_msg:    db 'Read Error',0
+drive_error_msg:    db 'Read/Write Error',0
 
 ;text varibles
 row:            db 0
@@ -235,10 +236,13 @@ main:
     mov si, msg1
     call color_print
 
-
-    mov [color], word cyan
     mov [row], byte 1
     mov [column], byte 0
+    mov [color], word white
+    mov si, msg2
+    call color_print
+
+    mov [color], word cyan
     call move_cursor
     mov [input_bound], byte 20
     mov [ignore_case], byte 1
@@ -248,8 +252,8 @@ main:
     mov di, hello
     call compare_str
 
-    mov [row], byte 10
-    mov [column], byte 25
+    mov [row], byte 2
+    mov [column], byte 0
     mov [color], word light_green
     mov si, equalStr
     cmp al, 1
@@ -445,6 +449,30 @@ delete_char:
     popa
     ret
 
+;-------------------------------------------------------------------
+; Writes a singe sector back to the drive
+; Arguments:
+;   write_sector: Which sector on the drive to write to
+;   write_from: Where to write from memory
+;-------------------------------------------------------------------
+write_drive:
+    pusha
+    mov ah, 0x03
+    mov dl, byte [drive]
+    mov ch, 0
+    mov dh, 0
+    mov cl, [write_sector]
+    mov al, 1
+    xor bx, bx
+    mov es, bx
+    mov bx, [write_from]
+    int 0x13
+    jc drive_error
+    cmp al, 1
+    jne drive_error
+    popa
+    ret
+
 ;beep variables
 beep_count: db 1
 
@@ -458,10 +486,15 @@ ignore_case:    db 0
 hex_table:      db '0123456789ABCDEF',0
 
 ;test strings
-equalStr:   db  'They are equal',0
-notEqual:   db  'Not equal',0
+equalStr:       db 'Success',0
+notEqual:       db 'Failure',0
 hello:          db 'HELLO',0
 msg1:           db 'Warning, drive not properly configured.',0
+msg2:           db "Type 'hello' (case doesn't matter):",0
+
+;write variables
+write_sector:   db 0
+write_from:     dw 0
 
 times 2048-($-$$) db 0      ;total of 4, 512 byte sectors
 
