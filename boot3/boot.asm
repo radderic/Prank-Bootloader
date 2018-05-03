@@ -244,7 +244,7 @@ main:
 
     mov [row], byte 0
     mov [column], byte 0
-    mov [color], word white
+    mov [color], word red
     mov si, msg1
     call color_print
 
@@ -510,9 +510,9 @@ hex_table:      db '0123456789ABCDEF',0
 equalStr:       db 'Success',0
 notEqual:       db 'Failure',0
 hello:          db 'HELLO',0
-msg1:           db 'Warning, drive not properly configured.',0
-msg2:           db "Type 'hello' (case doesn't matter):",0
-turnOffMsg1:    db 'You turned off your computer to avoid this...',0
+msg1:           db 'Warning: drive not properly configured.',0
+msg2:           db "Type 'hello' to fix:",0
+turnOffMsg1:    db 'Computer was turned off midway through last session, doing something else',0
 
 ;write variables
 write_sector:   db 0
