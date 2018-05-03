@@ -10,7 +10,7 @@ all : $(filename).asm
 	nasm $(filename).asm $(flags) $(filename).bin
 
 debug : $(filename).bin
-	konsole -e gdb $(gdbflags) gdbcommands.txt
+#	konsole -e gdb $(gdbflags) gdbcommands.txt
 	qemu-system-i386 $(debug) $(filename).bin
 
 flashsdb : $(filename).bin

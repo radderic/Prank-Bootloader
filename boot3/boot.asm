@@ -39,7 +39,7 @@ start:
     call clear_screen
 
     mov [read_sector], byte 2
-    mov [sectors_num], byte 3
+    mov [sectors_num], byte 5
     mov [read_loc], word seg2
     call read_all_sectors
 
@@ -49,9 +49,9 @@ start:
     hlt                     ;halt cpu
 
 color_print:
-;    mov di, word [color]
-;    mov bl, byte [di]   ;set color
-    mov bl, byte [color]   ;set color
+    pusha
+    mov di, word [color]
+    mov bl, byte [di]   ;set color
     mov bh, 0           ;page 0
     mov cx, 1           ;chars to write
 .cPrintLoop:
@@ -67,6 +67,7 @@ color_print:
     call delay
     jmp .cPrintLoop
 .cEndPrint:
+    popa
     ret
 
 ; move cursor one position
@@ -104,17 +105,16 @@ read_all_sectors:
     mov bx, word [read_loc]     ;read sectors into read_loc
     int 0x13
     jc drive_error
-    cmp al, 1
+    cmp al, byte [sectors_num]
     jne drive_error
     ret
 
 drive_error:
     mov ah, 1
     int 0x13
-    mov [row], byte 0
-    mov [column], byte 0
-;    mov [color], word red
-    mov [color], byte 0x9
+    mov [row], byte 10
+    mov [column], byte 10
+    mov [color], word red
     mov si, drive_error_msg
     call color_print
     ret
@@ -160,28 +160,29 @@ white:              db 0xf
 drive:              db 0
 read_sector:        db 0
 sectors_num:        db 0
-read_loc:           db 0
+read_loc:           dw 0
 drive_error_msg:    db 'Read Error',0
 
 row:            db 0
 column:         db 0
 color:          dw 0
 
-delay_time:     db 0
+delay_time:     db 1
 
 times 510-($-$$) db 0
 dw 0xaa55
 seg2:
 ;remaining sectors go here
 main:
-    call clear_screen
 
-    mov [row], byte 1
-    mov [column], byte 0
-;    mov [color], word light_green
-    mov [color], byte 0x9
+    mov [row], byte 11
+    mov [column], byte 10
+    mov [color], word light_green
     mov si, success
     call color_print
+
+    cli
+    hlt
 
 print_hex:
     mov cx, 0               ;count number of hex chars
@@ -201,7 +202,7 @@ print_hex:
     pop ax                  ;hex char will be in al only
     add bx, ax              ;add with pointer to array to get char
     mov al, [bx]            ;move char to register
-    xor bx, bx              ;make 0
+    xor bx, bx
     mov ah, 0x0e            ;get ready to print
     int 0x10
     dec cx
@@ -337,7 +338,7 @@ input_bound:    dw 0
 input:          times 20 db 0
 hex_table:      db '0123456789ABCDEF',0
 success:        db  'We did it',0
-times 2048-($-$$) db 0
+times 4096-($-$$) db 0
 
 
 
