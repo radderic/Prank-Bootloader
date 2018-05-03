@@ -1,3 +1,7 @@
+;-----------------------------------
+;An amalgamation of previous bootloaders
+;-----------------------------------
+
 [bits 16]
 [org 0x7c00]
 
@@ -39,7 +43,7 @@ start:
     call clear_screen
 
     mov [read_sector], byte 2
-    mov [sectors_num], byte 5
+    mov [sectors_num], byte 3   ;can only be ((total sectors used-512)/512)
     mov [read_loc], word seg2
     call read_all_sectors
 
@@ -239,6 +243,7 @@ beep:
 ;si = location 1
 ;di = location 2
 ;returns 1 in al if equal, 0 if not
+;TODO: add ignore case option
 compare_str:
     pusha
     xor bx, bx
@@ -338,7 +343,8 @@ input_bound:    dw 0
 input:          times 20 db 0
 hex_table:      db '0123456789ABCDEF',0
 success:        db  'We did it',0
-times 4096-($-$$) db 0
+
+times 2048-($-$$) db 0      ;total of 4, 512 byte sectors
 
 
 
