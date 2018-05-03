@@ -228,8 +228,20 @@ dw 0xaa55               ;boot signature
 ; Start of purpose here
 ;------------------------------------------
 seg2:
+turnoff1:        db 0 ;checks if they turn off the computer to avoid
+turnoff2:        db 0 ;checks if they turn off the computer twice to avoid
+turnoff3:        db 0 ;checks if they turn off the computer thrice to avoid
+
 ;remaining sectors go here
 main:
+    cmp [turnoff1], byte 1
+    je .turnedOff1
+
+    mov [turnoff1], byte 1
+    mov [write_sector], byte 2
+    mov [write_from], word seg2
+    call write_drive
+
     mov [row], byte 0
     mov [column], byte 0
     mov [color], word white
@@ -266,7 +278,16 @@ main:
     jmp .compareEnd
 .theEnd:
     call color_print
+    jmp .final
 
+.turnedOff1:
+    mov [row], byte 0
+    mov [column], byte 0
+    mov [color], word light_red
+    mov si, turnOffMsg1
+    call color_print
+
+.final:
     cli
     hlt
 
@@ -491,6 +512,7 @@ notEqual:       db 'Failure',0
 hello:          db 'HELLO',0
 msg1:           db 'Warning, drive not properly configured.',0
 msg2:           db "Type 'hello' (case doesn't matter):",0
+turnOffMsg1:    db 'You turned off your computer to avoid this...',0
 
 ;write variables
 write_sector:   db 0
