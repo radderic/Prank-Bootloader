@@ -32,26 +32,36 @@ VolumeLabel:                db  'hello world'
 FileSystem:                 db  'FAT12   '
 
 start:
-    xor ax, ax
+    xor ax, ax                  ;clear all segment registers
     mov ds, ax
     mov es, ax
     mov ss, ax
-    mov sp, 0x7c00  ;sets stack below
+    mov sp, 0x7c00              ;sets stack below
 
-    mov [drive], byte dl
+    mov [drive], byte dl        ;save drive id
 
+    call set_default_video_mode
     call clear_screen
 
-    mov [read_sector], byte 2
+    mov [read_sector], byte 2   ;read the remaining sectors into memory
     mov [sectors_num], byte 3   ;can only be ((total sectors used-512)/512)
     mov [read_loc], word seg2
     call read_all_sectors
 
-    jmp main
+    jmp main                    ;go to our real code
 
-    cli                     ;clear interrupts
-    hlt                     ;halt cpu
+    cli                         ;clear interrupts
+    hlt                         ;halt cpu
 
+;-------------------------------------------------------------------
+; Prints color text at specific location
+; Arguments:
+;   color: Color of the text, pass the address into color
+;   row: row which to start text on
+;   column: Column which to start text on
+;   delay_time: Time between each character written, default 1/4th second
+;       for each 1 value, it is 1/4th a second, therefore 4 is an entire second
+;-------------------------------------------------------------------
 color_print:
     pusha
     mov di, word [color]
@@ -74,7 +84,12 @@ color_print:
     popa
     ret
 
-; move cursor one position
+;-------------------------------------------------------------------
+; Moves cursor to specified row and column
+; Arguments:
+;   row: Row to set cursor to
+;   column: Colmun to set cursor to
+;-------------------------------------------------------------------
 move_cursor:
     pusha
     mov dh, byte [row]
@@ -85,6 +100,9 @@ move_cursor:
     popa
     ret
 
+;-------------------------------------------------------------------
+; Clears the screen
+;-------------------------------------------------------------------
 clear_screen:
     pusha
     mov ah, 0x6
@@ -97,6 +115,25 @@ clear_screen:
     popa
     ret
 
+;-------------------------------------------------------------------
+; Sets to default video mode (3), which is 80x25 text mode
+;-------------------------------------------------------------------
+set_default_video_mode:
+    pusha
+    xor ax, ax
+    mov al, 0x3     ;80x25, text mode
+    int 0x10
+    popa
+    ret
+
+;-------------------------------------------------------------------
+; Reads remaining code into memory from the drive
+; Arguments:
+;   drive: the drive is passed from dl on boot
+;   read_sector: generally is always 2, as it starts reading after 512 bytes
+;   sectors_num: the amount of sectors to be read into memory
+;   read_loc: the location which the read is put into memory
+;-------------------------------------------------------------------
 read_all_sectors:
     mov ah, 0x02
     mov dl, byte [drive]        ;select the drive
@@ -113,16 +150,24 @@ read_all_sectors:
     jne drive_error
     ret
 
+;-------------------------------------------------------------------
+; Prints error message if the drive was unable to read or write from drive
+;-------------------------------------------------------------------
 drive_error:
     mov ah, 1
     int 0x13
-    mov [row], byte 10
-    mov [column], byte 10
+    mov [row], byte 0
+    mov [column], byte 0
     mov [color], word red
     mov si, drive_error_msg
     call color_print
     ret
 
+;-------------------------------------------------------------------
+; Delays cpu for a 1/4th a second. Can be delayed for longer with delay_time
+; Arguments:
+;   delay_time: for each 1 value, it is 1/4th a second, therefore 4 is an entire second
+;-------------------------------------------------------------------
 delay:
     pusha
     mov al, byte [delay_time]
@@ -161,12 +206,14 @@ light_magenta:      db 0xd
 yellow:             db 0xe
 white:              db 0xf
 
+;drive variables
 drive:              db 0
 read_sector:        db 0
 sectors_num:        db 0
 read_loc:           dw 0
 drive_error_msg:    db 'Read Error',0
 
+;text varibles
 row:            db 0
 column:         db 0
 color:          dw 0
@@ -174,20 +221,56 @@ color:          dw 0
 delay_time:     db 1
 
 times 510-($-$$) db 0
-dw 0xaa55
+dw 0xaa55               ;boot signature
+
+;------------------------------------------
+; Start of purpose here
+;------------------------------------------
 seg2:
 ;remaining sectors go here
 main:
+    mov [row], byte 0
+    mov [column], byte 0
+    mov [color], word white
+    mov si, msg1
+    call color_print
 
-    mov [row], byte 11
-    mov [column], byte 10
+
+    mov [color], word cyan
+    mov [row], byte 1
+    mov [column], byte 0
+    call move_cursor
+    mov [input_bound], byte 20
+    mov [ignore_case], byte 1
+    call user_input
+
+    mov si, input
+    mov di, hello
+    call compare_str
+
+    mov [row], byte 10
+    mov [column], byte 25
     mov [color], word light_green
-    mov si, success
+    mov si, equalStr
+    cmp al, 1
+    jne .strNotEqual
+.compareEnd:
+    jmp .theEnd
+.strNotEqual:
+    mov [color], word light_red
+    mov si, notEqual
+    jmp .compareEnd
+.theEnd:
     call color_print
 
     cli
     hlt
 
+;-------------------------------------------------------------------
+; Prints a value as hex
+; Arguments:
+;   Word (4 bytes) to be printed comes in register ax
+;-------------------------------------------------------------------
 print_hex:
     mov cx, 0               ;count number of hex chars
 .hexLoop:
@@ -214,6 +297,12 @@ print_hex:
 .endHexPrint:
     ret
 
+;-------------------------------------------------------------------
+; Beeps through speaker at specified time interval
+; Arguments:
+;   beep_count: Times to loop all beeps
+;   delay_time: Duration of each beep, for every 1 is 1/4 a second
+;-------------------------------------------------------------------
 beep:
     pusha
     mov cx, 0
@@ -228,9 +317,6 @@ beep:
     in  al, 0x61
     and al, 0xfc
     out 0x61, al
-    in  al, 0x61
-    and al, 0xfd    ;try both
-    out 0x61, al
     call delay
     inc cx
     jmp .beepLoop
@@ -238,18 +324,32 @@ beep:
     popa
     ret
 
-;comapares two memory locations which hold strings
-;bx = index
-;si = location 1
-;di = location 2
-;returns 1 in al if equal, 0 if not
-;TODO: add ignore case option
+;-------------------------------------------------------------------
+; Compares two memory locations which hold strings
+; Arguments:
+;   si = location 1
+;   di = location 2
+;   ignore_case: If set to 1, case is ignored, if 0, case is significant
+; Return:
+;   returns 1 in al if equal, 0 if not
+;-------------------------------------------------------------------
 compare_str:
     pusha
     xor bx, bx
 .compareLoop:
     mov al, byte [si+bx]
     mov ah, byte [di+bx]
+    cmp [ignore_case], byte 1 ;if greater than or equal to 0x61 (a) subtract 32
+    jne .caseSensitive
+    cmp al, 0x61
+    jl .keepFirstCase
+    sub al, 32
+.keepFirstCase:
+    cmp ah, 0x61
+    jl .keepSecondCase
+    sub ah, 32
+.keepSecondCase:
+.caseSensitive:
     cmp al, ah
     jne .notEqual
     or al, 0
@@ -265,12 +365,20 @@ compare_str:
     mov al, 0
     ret
 
+
+;-------------------------------------------------------------------
+; Writes a character, generally a helper function for printing functions
+; Arguments:
+;   key_pressed: Character to be printed
+;   color:  color of text
+;-------------------------------------------------------------------
 write_char:
     pusha
     mov ah, 0x9
     mov al, byte [key_pressed]
     mov bh, 0
-    mov bl, byte [white]
+    mov di, word [color]
+    mov bl, byte [di]
     mov cx, 1
     int 0x10
     mov bl, byte [column]
@@ -280,9 +388,13 @@ write_char:
     popa
     ret
 
-;press enter to confirm
-;delete with backspace
-;display chars to screen and progress cursor
+;-------------------------------------------------------------------
+; Gets user input of specified length and writes it as they type
+;   Bacspace for deletion, enter for submission
+; Arguments:
+;   input_bound: the bound which defines how many characters the user can input
+;       This value cannot be larger than the input buffer
+;-------------------------------------------------------------------
 user_input:
     mov bx, 0                   ;position
 .inputLoop:
@@ -313,6 +425,10 @@ user_input:
     inc bx                      ;increment the buffer position
     jmp .inputLoop
 
+
+;-------------------------------------------------------------------
+; Helper function for user input. Removes character from screen
+;-------------------------------------------------------------------
 delete_char:
     pusha
     mov cl, byte [column]
@@ -322,32 +438,30 @@ delete_char:
     mov ah, 0x9
     mov bh, 0
     mov al, 0x20
-    mov bl, byte [white]
+    mov di, word [color]
+    mov bl, byte [di]
     mov cx, 1
     int 0x10
     popa
     ret
 
-set_video_mode:
-    pusha
-    xor ax, ax
-    mov al, 0x3     ;80x25, text mode
-    int 0x10
-    ret
-
+;beep variables
 beep_count: db 1
 
+;input variables
+input:          times 20 db 0
 key_pressed:    db 0
 input_color:    db 0
 input_bound:    dw 0
-input:          times 20 db 0
+ignore_case:    db 0
+
 hex_table:      db '0123456789ABCDEF',0
-success:        db  'We did it',0
+
+;test strings
+equalStr:   db  'They are equal',0
+notEqual:   db  'Not equal',0
+hello:          db 'HELLO',0
+msg1:           db 'Warning, drive not properly configured.',0
 
 times 2048-($-$$) db 0      ;total of 4, 512 byte sectors
-
-
-
-
-
 
