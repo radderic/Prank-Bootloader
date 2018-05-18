@@ -57,7 +57,7 @@ start:
 ;-------------------------------------------------------------------
 ; Prints color text at specific location
 ; Arguments:
-;   color: Color of the text, pass the address into color
+;   fg_color: Color of the text, pass the address into color
 ;   row: row which to start text on
 ;   column: Column which to start text on
 ;   delay_time: Time between each character written, default 1/4th second
@@ -65,7 +65,7 @@ start:
 ;-------------------------------------------------------------------
 color_print:
     pusha
-    mov di, word [color]
+    mov di, word [fg_color]
     mov bl, byte [di]   ;set color
     mov bh, 0           ;page 0
     mov cx, 1           ;chars to write
@@ -159,7 +159,7 @@ drive_error:
     int 0x13
     mov [row], byte 0
     mov [column], byte 0
-    mov [color], word red
+    mov [fg_color], word red
     mov si, drive_error_msg
     call color_print
     ret
@@ -217,7 +217,8 @@ drive_error_msg:    db 'Read/Write Error',0
 ;text varibles
 row:            db 0
 column:         db 0
-color:          dw 0
+fg_color:       dw 0
+bg_color:       dw 0
 
 delay_time:     db 1
 
@@ -244,60 +245,65 @@ main:
 
     mov [row], byte 0
     mov [column], byte 0
-    mov [color], word red
+    mov [fg_color], word red
     mov si, msg1
     call color_print
 
     mov [row], byte 1
     mov [column], byte 0
-    mov [color], word white
+    mov [fg_color], word white
     mov si, msg2
     call color_print
 
-    mov [color], word cyan
+    mov [fg_color], word cyan
     call move_cursor
-    mov [input_bound], byte 20
+    mov [input_bound], byte 1
     mov [ignore_case], byte 1
     call user_input
 
     mov si, input
-    mov di, hello
+    mov di, ans1
     call compare_str
 
     mov [row], byte 2
     mov [column], byte 0
-    mov [color], word light_green
+    mov [fg_color], word light_green
     mov si, equalStr
     cmp al, 1
     jne .strNotEqual
 .compareEnd:
     jmp .theEnd
 .strNotEqual:
-    mov [color], word light_red
+    mov [fg_color], word light_red
     mov si, notEqual
     jmp .compareEnd
 .theEnd:
     call color_print
+
     jmp .final
 
 .turnedOff1:
     mov [row], byte 0
     mov [column], byte 0
-    mov [color], word light_red
+    mov [fg_color], word light_red
     mov si, turnOffMsg1
     call color_print
 
 .final:
+    mov [bg_color], word yellow
+    call set_bg_only
     cli
     hlt
 
 ;-------------------------------------------------------------------
 ; Prints a value as hex
 ; Arguments:
-;   Word (4 bytes) to be printed comes in register ax
+;   Word (2 bytes) to be printed in the variable hex
 ;-------------------------------------------------------------------
 print_hex:
+    pusha
     mov cx, 0               ;count number of hex chars
+    mov ax, word [hex]
 .hexLoop:
     cmp cx, 4
     je .hexPrint
@@ -320,6 +326,7 @@ print_hex:
     dec cx
     jmp .hexPrint
 .endHexPrint:
+    popa
     ret
 
 ;-------------------------------------------------------------------
@@ -395,14 +402,14 @@ compare_str:
 ; Writes a character, generally a helper function for printing functions
 ; Arguments:
 ;   key_pressed: Character to be printed
-;   color:  color of text
+;   fg_color: color of text
 ;-------------------------------------------------------------------
 write_char:
     pusha
     mov ah, 0x9
     mov al, byte [key_pressed]
     mov bh, 0
-    mov di, word [color]
+    mov di, word [fg_color]
     mov bl, byte [di]
     mov cx, 1
     int 0x10
@@ -463,7 +470,7 @@ delete_char:
     mov ah, 0x9
     mov bh, 0
     mov al, 0x20
-    mov di, word [color]
+    mov di, word [fg_color]
     mov bl, byte [di]
     mov cx, 1
     int 0x10
@@ -494,6 +501,36 @@ write_drive:
     popa
     ret
 
+
+;-------------------------------------------------------------------
+; Changes the background color but preserves foreground color (text color)
+; Arguments:
+;   bg_color: sets background color
+;-------------------------------------------------------------------
+set_bg_only:
+    pusha
+    mov di, word [bg_color]
+    mov cx, word [di]       ;save color before we change ds
+    shl cx, 4               ;move it to bg bits location
+    push ds
+    mov bx, 0xb800
+    mov ds, bx:
+    mov bx, 1               ;start at offset of 1 to select colors
+    xor ax, ax
+.bgOnlyLoop:
+    cmp bx, 4000
+    jg .bgOnlyEnd
+    mov al, byte [ds:bx]
+    and al, 0b00001111      ;clear bottom half of byte
+    or al, cl
+    mov [ds:bx], byte al
+    add bx, 2
+    jmp .bgOnlyLoop
+.bgOnlyEnd:
+    pop ds
+    popa
+    ret
+
 ;beep variables
 beep_count: db 1
 
@@ -505,13 +542,14 @@ input_bound:    dw 0
 ignore_case:    db 0
 
 hex_table:      db '0123456789ABCDEF',0
+hex:            dw 0
 
 ;test strings
 equalStr:       db 'Success',0
 notEqual:       db 'Failure',0
-hello:          db 'HELLO',0
-msg1:           db 'Warning: drive not properly configured.',0
-msg2:           db "Type 'hello' to fix:",0
+ans1:           db 'y',0
+msg1:           db 'DISK BOOT FAILURE, ATTEMPT TO FIX?',0
+msg2:           db 'Choose (y/n):',0
 turnOffMsg1:    db 'Computer was turned off midway through last session, doing something else',0
 
 ;write variables

@@ -4,7 +4,7 @@ flags = -f bin -o
 debug = -s -S
 gdbflags = -q -x
 
-.PHONY: read, qemu
+.PHONY: read
 
 all : $(filename).asm
 	nasm $(filename).asm $(flags) $(filename).bin
@@ -22,5 +22,8 @@ flashsdc : $(filename).bin
 read :
 	sudo dd if=/dev/sdb of=./output.txt bs=1024 count=5
 
-qemu :
+$(filename).bin : $(filename).asm
+	nasm $(filename).asm $(flags) $(filename).bin
+
+qemu : $(filename).bin
 	qemu-system-i386 $(filename).bin
