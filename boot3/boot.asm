@@ -29,7 +29,7 @@ DriveNumber:                db  0
 Reserved:                   db  0
 Signature:                  db  0x29
 VolumeID:                   dd  0xdeadbeef
-VolumeLabel:                db  'hello world'
+VolumeLabel:                db  'legit usb  '
 FileSystem:                 db  'FAT12   '
 
 start:
@@ -290,6 +290,7 @@ main:
     call color_print
 
 .final:
+    call enable_bg_intensity
     mov [bg_color], word yellow
     call set_bg_only
     cli
@@ -528,6 +529,32 @@ set_bg_only:
     jmp .bgOnlyLoop
 .bgOnlyEnd:
     pop ds
+    popa
+    ret
+
+
+;-------------------------------------------------------------------
+; Disables blinking text and allows more background colors to be used
+;-------------------------------------------------------------------
+enable_bg_intensity:
+    pusha
+    mov ax, 0x1003
+    mov bl, 0x0
+    mov bh, 0x0
+    int 0x10
+    popa
+    ret
+
+;-------------------------------------------------------------------
+; Disables certain background colors where the highest bit is 1.
+;   It instead makes the text blink
+;-------------------------------------------------------------------
+enable_blinking:
+    pusha
+    mov ax, 0x1003
+    mov bl, 0x1
+    mov bh, 0x0
+    int 0x10
     popa
     ret
 
