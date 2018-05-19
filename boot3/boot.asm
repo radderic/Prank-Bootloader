@@ -67,6 +67,12 @@ color_print:
     pusha
     mov di, word [fg_color]
     mov bl, byte [di]   ;set color
+;
+    mov di, word [bg_color]
+    mov cl, byte [di]       ;save color before we change ds
+    shl cx, 4
+    or bl, cl
+;
     mov bh, 0           ;page 0
     mov cx, 1           ;chars to write
 .cPrintLoop:
@@ -197,8 +203,8 @@ cyan:               db 0x3
 red:                db 0x4
 magenta:            db 0x5
 brown:              db 0x6
-light_grey:         db 0x7
-dark_grey:          db 0x8
+light_gray:         db 0x7
+dark_gray:          db 0x8
 light_blue:         db 0x9
 light_green:        db 0xa
 light_cyan:         db 0xb
@@ -243,6 +249,8 @@ main:
     mov [write_from], word seg2
     call write_drive
 
+    mov [bg_color], word black
+
     mov [row], byte 0
     mov [column], byte 0
     mov [fg_color], word red
@@ -251,9 +259,13 @@ main:
 
     mov [row], byte 1
     mov [column], byte 0
-    mov [fg_color], word white
+    mov [fg_color], word blue
     mov si, msg2
     call color_print
+
+    mov [fg_color], word light_green
+    mov [bg_color], word dark_gray
+    call set_fg_and_bg
 
     mov [fg_color], word cyan
     call move_cursor
@@ -291,7 +303,7 @@ main:
 
 .final:
     call enable_bg_intensity
-    mov [bg_color], word yellow
+    mov [bg_color], word white
     call set_bg_only
     cli
     hlt
@@ -412,6 +424,12 @@ write_char:
     mov bh, 0
     mov di, word [fg_color]
     mov bl, byte [di]
+;
+    mov di, word [bg_color]
+    mov cl, byte [di]       ;save color before we change ds
+    shl cx, 4
+    or bl, cl
+;
     mov cx, 1
     int 0x10
     mov bl, byte [column]
@@ -473,6 +491,12 @@ delete_char:
     mov al, 0x20
     mov di, word [fg_color]
     mov bl, byte [di]
+;
+    mov di, word [bg_color]
+    mov cl, byte [di]       ;save color before we change ds
+    shl cx, 4
+    or bl, cl
+;
     mov cx, 1
     int 0x10
     popa
@@ -532,6 +556,36 @@ set_bg_only:
     popa
     ret
 
+;-------------------------------------------------------------------
+; Sets both foreground and background colors for entire screen
+; Arguments:
+;   fg_color: the color of the text
+;   bg_color: the color of the background
+;-------------------------------------------------------------------
+set_fg_and_bg:
+    pusha
+    xor cx, cx
+    mov di, word [bg_color]
+    mov cx, word [di]       ;save color before we change ds
+    mov di, word [fg_color]
+    mov dx, word [di]       ;save color before we change ds
+    shl cx, 4
+    or cx, dx
+    push ds
+    mov bx, 0xb800
+    mov ds, bx:
+    mov bx, 1               ;start at offset of 1 to select colors
+    xor ax, ax
+.bgOnlyLoop:
+    cmp bx, 4000
+    jg .bgOnlyEnd
+    mov [ds:bx], byte cl
+    add bx, 2
+    jmp .bgOnlyLoop
+.bgOnlyEnd:
+    pop ds
+    popa
+    ret
 
 ;-------------------------------------------------------------------
 ; Disables blinking text and allows more background colors to be used
