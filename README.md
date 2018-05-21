@@ -1,5 +1,5 @@
-# Bootloader-Hello-World
-Runs after bios as if a bootloader. The 3rd bootloader is being designed as a prank bootloader.
+# Prank Bootlader
+Runs after bios and pretends to be errors but doesn't actually do anything bad.
 
 Use make to compile.
 ```bash
@@ -12,9 +12,8 @@ make qemu
 Use make flashsdx, where x is the specific drive
 Check lsblk or dmesg to ensure you're writing to the correct drive!
 ```bash
-make flashsdc
+make flashsdx
 ```
-
 
 Or you can do it yourself
 use nasm to compile:
@@ -26,13 +25,16 @@ use dd to put on usb(whether it is /dev/sdb or what):
 sudo dd if=./filename.bin of=/dev/sdx
 ```
 
-# Example of boot3
+# Example of bootlader
 ![send nudes](./boot.gif)
 
-* I recommend trying in qemu or virtualbox first before trying usb
+#Requirements:
+* Only works on x86 computers
 
 * I had to enable legacy mode in the bios for my usb to be used. Might have to disable secure boot too.
 
-* Only works on x86 computers
+* I recommend trying in qemu or virtualbox first before trying usb
+
+
 
 
