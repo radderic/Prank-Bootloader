@@ -1,6 +1,5 @@
 ;-----------------------------------
-; An amalgamation of previous bootloaders
-; Soon to be a prank bootloader
+; Prank Bootloader
 ;-----------------------------------
 
 [bits 16]
@@ -67,12 +66,10 @@ color_print:
     pusha
     mov di, word [fg_color]
     mov bl, byte [di]   ;set color
-;
     mov di, word [bg_color]
     mov cl, byte [di]       ;save color before we change ds
     shl cx, 4
     or bl, cl
-;
     mov bh, 0           ;page 0
     mov cx, 1           ;chars to write
 .cPrintLoop:
@@ -171,9 +168,9 @@ drive_error:
     ret
 
 ;-------------------------------------------------------------------
-; Delays cpu for a 1/4th a second. Can be delayed for longer with delay_time
+; Delays cpu for a 1/16th a second. Can be delayed for longer with delay_time
 ; Arguments:
-;   delay_time: for each 1 value, it is 1/4th a second, therefore 4 is an entire second
+;   delay_time: for each 1 value, it is 1/16th a second, therefore 16 is an entire second
 ;-------------------------------------------------------------------
 delay:
     pusha
@@ -239,34 +236,132 @@ turnoff1:        db 0 ;checks if they turn off the computer to avoid
 turnoff2:        db 0 ;checks if they turn off the computer twice to avoid
 turnoff3:        db 0 ;checks if they turn off the computer thrice to avoid
 
-;remaining sectors go here
 main:
-    cmp [turnoff1], byte 1
-    je .turnedOff1
+    ;call this when you want to keep track of being turned off and do something else
+;    mov [turnoff1], byte 1
+;    mov [write_sector], byte 2
+;    mov [write_from], word seg2
+;    call write_drive
 
-    mov [turnoff1], byte 1
-    mov [write_sector], byte 2
-    mov [write_from], word seg2
-    call write_drive
-
-    mov [bg_color], word black
-
+.beginning:
     mov [row], byte 0
+    call clear_screen
+    ;DISK BOOT FAILURE, ATTEMPT REPAIR?
     mov [column], byte 0
+    mov [bg_color], word black
     mov [fg_color], word red
     mov si, msg1
     call color_print
 
-    mov [row], byte 1
+    ;Choose (y/n):
+    inc byte [row]
     mov [column], byte 0
-    mov [fg_color], word blue
+    mov [fg_color], word white
+    mov si, qst
+    call color_print
+
+    ;get user input of either y or n
+    mov [fg_color], word cyan
+    call move_cursor
+    mov [input_bound], byte 1
+    mov [ignore_case], byte 1
+    call user_input
+
+    ;register al returns 1 if it was 'y'
+    mov si, input
+    mov di, ans
+    call compare_str
+
+    cmp al, 0       ;al is 1 if they were equal
+    je .beginning
+
+
+    ;DO NOT SHUT OFF COMPUTER
+    mov [bg_color], word black
+    inc byte [row]
+    mov [column], byte 0
+    mov [fg_color], word light_red
+    mov si, noShutOff
+    call color_print
+
+    ;Attempting repair
+    mov [bg_color], word dark_gray  ;dark gray basically is enable blinking text
+    inc byte [row]
+    mov [column], byte 0
+    mov [fg_color], word green
+    mov si, attempt
+    call color_print
+
+    ;delay for about 3 seconds
+    mov [delay_time], byte 48
+    call delay
+
+    ;turn off blinking parts
+    mov [bg_color], word black
+    call set_bg_only
+
+    ;warning
+    mov [delay_time], byte 0
+    mov [bg_color], word black
+    inc byte [row]
+    mov [column], byte 0
+    mov [fg_color], word yellow
+    mov si, warning
+    call color_print
+
+    ;wait 1/2 second
+    mov [delay_time], byte 8
+    call delay
+
+    ;WARNING
+    mov [delay_time], byte 0
+    mov [bg_color], word black
+    inc byte [row]
+    mov [column], byte 0
+    mov [fg_color], word brown
+    mov si, WARN
+    call color_print
+
+    ;wait 1/2 second
+    mov [delay_time], byte 8
+    call delay
+
+    ;ERROR x 5
+    mov cx, 0
+.errorLoop:
+    ;turn off delay between letters
+    mov [delay_time], byte 0
+    mov [bg_color], word black
+    inc byte [row]
+    mov [column], byte 0
+    mov [fg_color], word red
+    mov si, error
+    call color_print
+
+    ;delay 1/4 a second between each error
+    mov [delay_time], byte 4
+    call delay
+
+    cmp [row], byte 10
+    jne .errorLoop
+
+    ;set delay back to normal printing speed
+    ;DELETE ALL DRIVE CONTENTS?
+    mov [delay_time], byte 1
+    inc byte [row]
+    mov [column], byte 0
+    mov [fg_color], word white
     mov si, msg2
     call color_print
 
-    mov [fg_color], word light_green
-    mov [bg_color], word dark_gray
-    call set_fg_and_bg
+    ;Choose (y/n):
+    inc byte [row]
+    mov [column], byte 0
+    mov [fg_color], word white
+    mov si, qst
+    call color_print
 
+    ;get y or n
     mov [fg_color], word cyan
     call move_cursor
     mov [input_bound], byte 1
@@ -274,37 +369,55 @@ main:
     call user_input
 
     mov si, input
-    mov di, ans1
+    mov di, ans
     call compare_str
 
-    mov [row], byte 2
-    mov [column], byte 0
-    mov [fg_color], word light_green
-    mov si, equalStr
+    ;they said yes so pretend to delete
     cmp al, 1
-    jne .strNotEqual
-.compareEnd:
-    jmp .theEnd
-.strNotEqual:
-    mov [fg_color], word light_red
-    mov si, notEqual
-    jmp .compareEnd
-.theEnd:
-    call color_print
+    je .fakeDelete
 
-    jmp .final
-
-.turnedOff1:
-    mov [row], byte 0
+    ;YOU ARE ABOUT TO DESTROY THE DRIVE AND ALL DATA WILL BE UNRECOVERABLE,
+    inc byte [row]
     mov [column], byte 0
-    mov [fg_color], word light_red
-    mov si, turnOffMsg1
+    mov [fg_color], word brown
+    mov si, msg3
     call color_print
 
-.final:
-    call enable_bg_intensity
-    mov [bg_color], word white
-    call set_bg_only
+    ;ARE YOU SURE YOU WANT TO DO THIS?
+    inc byte [row]
+    mov [column], byte 0
+    mov [fg_color], word brown
+    mov si, msg4
+    call color_print
+
+    ;Choose (y/n):
+    inc byte [row]
+    mov [column], byte 0
+    mov [fg_color], word white
+    mov si, qst
+    call color_print
+
+    ;get user input
+    mov [fg_color], word cyan
+    call move_cursor
+    mov [input_bound], byte 1
+    mov [ignore_case], byte 1
+    call user_input
+
+.fakeDelete:
+    ;DELETING DRIVE
+    inc byte [row]
+    mov [column], byte 0
+    call move_cursor
+    mov [fg_color], word red
+    mov [bg_color], word dark_gray
+    mov si, deleting
+    call color_print
+
+    mov [delay_time], byte 32
+    call delay
+
+    call print_garbage
     cli
     hlt
 
@@ -424,12 +537,10 @@ write_char:
     mov bh, 0
     mov di, word [fg_color]
     mov bl, byte [di]
-;
     mov di, word [bg_color]
     mov cl, byte [di]       ;save color before we change ds
     shl cx, 4
     or bl, cl
-;
     mov cx, 1
     int 0x10
     mov bl, byte [column]
@@ -476,7 +587,6 @@ user_input:
     inc bx                      ;increment the buffer position
     jmp .inputLoop
 
-
 ;-------------------------------------------------------------------
 ; Helper function for user input. Removes character from screen
 ;-------------------------------------------------------------------
@@ -491,12 +601,10 @@ delete_char:
     mov al, 0x20
     mov di, word [fg_color]
     mov bl, byte [di]
-;
     mov di, word [bg_color]
     mov cl, byte [di]       ;save color before we change ds
     shl cx, 4
     or bl, cl
-;
     mov cx, 1
     int 0x10
     popa
@@ -525,7 +633,6 @@ write_drive:
     jne drive_error
     popa
     ret
-
 
 ;-------------------------------------------------------------------
 ; Changes the background color but preserves foreground color (text color)
@@ -576,11 +683,33 @@ set_fg_and_bg:
     mov ds, bx:
     mov bx, 1               ;start at offset of 1 to select colors
     xor ax, ax
+.fgbgLoop:
+    cmp bx, 4000
+    jg .fgbgEnd
+    mov [ds:bx], byte cl
+    add bx, 2
+    jmp .fgbgLoop
+.fgbgEnd:
+    pop ds
+    popa
+    ret
+
+;picks random memory location and prints it to screen, 0's are printed as spaces
+print_garbage:
+    pusha
+    push ds
+    mov bx, 0               ;start at offset of 1 to select colors
+    xor ax, ax
 .bgOnlyLoop:
     cmp bx, 4000
     jg .bgOnlyEnd
-    mov [ds:bx], byte cl
-    add bx, 2
+    mov dx, 0xc000          ;video rom bios area, random memory location to get bytes from
+    mov ds, dx
+    mov cx, [ds:bx]
+    mov dx, 0xb800
+    mov ds, dx:
+    mov [ds:bx], word cx
+    inc bx
     jmp .bgOnlyLoop
 .bgOnlyEnd:
     pop ds
@@ -627,11 +756,21 @@ hex:            dw 0
 
 ;test strings
 equalStr:       db 'Success',0
-notEqual:       db 'Failure',0
-ans1:           db 'y',0
-msg1:           db 'DISK BOOT FAILURE, ATTEMPT TO FIX?',0
-msg2:           db 'Choose (y/n):',0
+fail:           db 'CRITICAL FAILURE',0
+attempt:        db 'Attempting repair',0
+noShutOff:      db 'DO NOT SHUT OFF COMPUTER',0
+ans:            db 'y',0
+msg1:           db 'DISK BOOT FAILURE, ATTEMPT REPAIR?',0
+msg2:           db 'DELETE ALL DRIVE CONTENTS?',0
+msg3:           db 'YOU ARE ABOUT TO DESTROY THE DRIVE AND ALL DATA WILL BE UNRECOVERABLE,',0
+msg4:           db 'ARE YOU SURE YOU WANT TO DO THIS?',0
+qst:            db 'Choose (y/n):',0
 turnOffMsg1:    db 'Computer was turned off midway through last session, doing something else',0
+warning:        db 'Warning',0
+WARN:           db 'WARNING',0
+error:          db 'ERROR',0
+critical:       db 'CRITICAL FAILURE',0
+deleting:       db 'DELETING DRIVE',0
 
 ;write variables
 write_sector:   db 0
