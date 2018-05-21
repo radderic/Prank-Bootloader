@@ -25,10 +25,10 @@ use dd to put on usb(whether it is /dev/sdb or what):
 sudo dd if=./filename.bin of=/dev/sdx
 ```
 
-# Example of bootlader
+# Example of bootloader
 ![send nudes](./boot.gif)
 
-#Requirements:
+# Requirements:
 * Only works on x86 computers
 
 * I had to enable legacy mode in the bios for my usb to be used. Might have to disable secure boot too.
