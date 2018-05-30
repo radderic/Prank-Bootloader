@@ -192,6 +192,23 @@ delay:
     popa
     ret
 
+;write variables
+write_sector:   db 0
+write_from:     dw 0
+
+;beep variables
+beep_count: db 1
+
+;input variables
+input:          times 20 db 0
+key_pressed:    db 0
+input_color:    db 0
+input_bound:    dw 0
+ignore_case:    db 0
+
+hex_table:      db '0123456789ABCDEF',0
+hex:            dw 0
+
 ;colors
 black:              db 0x0
 blue:               db 0x1
@@ -225,6 +242,13 @@ bg_color:       dw 0
 
 delay_time:     db 1
 
+;test strings
+attempt:        db 'Attempting repair',0
+noShutOff:      db 'DO NOT SHUT OFF COMPUTER',0
+ans:            db 'y',0
+msg1:           db 'DISK BOOT FAILURE, ATTEMPT REPAIR?',0
+msg2:           db 'DELETE ALL DRIVE CONTENTS?',0
+
 times 510-($-$$) db 0
 dw 0xaa55               ;boot signature
 
@@ -232,33 +256,75 @@ dw 0xaa55               ;boot signature
 ; Start of purpose here
 ;------------------------------------------
 seg2:
+;only one of these should be toggled at a time
 turnoff1:        db 0 ;checks if they turn off the computer to avoid
 turnoff2:        db 0 ;checks if they turn off the computer twice to avoid
 turnoff3:        db 0 ;checks if they turn off the computer thrice to avoid
+turnoff4:        db 0 ;if they made it to the end always start at end
 
 main:
-    ;call this when you want to keep track of being turned off and do something else
-;    mov [turnoff1], byte 1
-;    mov [write_sector], byte 2
-;    mov [write_from], word seg2
-;    call write_drive
+    ;set some default values
+    mov [row], byte 0
+    mov [column], byte 0
+    mov [bg_color], word black
+    mov [fg_color], word red
+
+    ;check for previous turnoffs
+    cmp [turnoff4], byte 1
+    je .deleted
+    cmp [turnoff3], byte 1
+    jne .pass1
+    mov si, threat3
+    mov [column], byte 0
+    call color_print
+    inc byte [row]
+    jmp .fakeDelete
+.pass1:
+    cmp [turnoff2], byte 1
+    jne .pass2
+    mov si, threat2
+    mov [column], byte 0
+    call color_print
+    inc byte [row]
+    jmp .checkpoint2
+.pass2:
+    cmp [turnoff1], byte 1
+    jne .pass3
+    mov si, threat1
+    mov [column], byte 0
+    call color_print
+    inc byte [row]
+    jmp .checkpoint1
+.pass3:
+    ;beep to get their attention, may not work on some computers
+    mov [beep_count], byte 5
+    mov [delay_time], byte 8    ;half a second
+    call beep
 
 .beginning:
     mov [row], byte 0
+    mov [column], byte 0
     call clear_screen
     ;DISK BOOT FAILURE, ATTEMPT REPAIR?
+.checkpoint1:
     mov [column], byte 0
     mov [bg_color], word black
     mov [fg_color], word red
     mov si, msg1
     call color_print
+    inc byte [row]
 
     ;Choose (y/n):
-    inc byte [row]
     mov [column], byte 0
     mov [fg_color], word white
     mov si, qst
     call color_print
+
+    ;save state that we are at this point in case they attempt reboot
+    mov [turnoff1], byte 1
+    mov [write_sector], byte 2
+    mov [write_from], word seg2
+    call write_drive
 
     ;get user input of either y or n
     mov [fg_color], word cyan
@@ -266,6 +332,7 @@ main:
     mov [input_bound], byte 1
     mov [ignore_case], byte 1
     call user_input
+    inc byte [row]
 
     ;register al returns 1 if it was 'y'
     mov si, input
@@ -275,22 +342,21 @@ main:
     cmp al, 0       ;al is 1 if they were equal
     je .beginning
 
-
     ;DO NOT SHUT OFF COMPUTER
     mov [bg_color], word black
-    inc byte [row]
     mov [column], byte 0
     mov [fg_color], word light_red
     mov si, noShutOff
     call color_print
+    inc byte [row]
 
     ;Attempting repair
     mov [bg_color], word dark_gray  ;dark gray basically is enable blinking text
-    inc byte [row]
     mov [column], byte 0
     mov [fg_color], word green
     mov si, attempt
     call color_print
+    inc byte [row]
 
     ;delay for about 3 seconds
     mov [delay_time], byte 48
@@ -303,11 +369,11 @@ main:
     ;warning
     mov [delay_time], byte 0
     mov [bg_color], word black
-    inc byte [row]
     mov [column], byte 0
     mov [fg_color], word yellow
     mov si, warning
     call color_print
+    inc byte [row]
 
     ;wait 1/2 second
     mov [delay_time], byte 8
@@ -316,11 +382,11 @@ main:
     ;WARNING
     mov [delay_time], byte 0
     mov [bg_color], word black
-    inc byte [row]
     mov [column], byte 0
     mov [fg_color], word brown
     mov si, WARN
     call color_print
+    inc byte [row]
 
     ;wait 1/2 second
     mov [delay_time], byte 8
@@ -332,11 +398,11 @@ main:
     ;turn off delay between letters
     mov [delay_time], byte 0
     mov [bg_color], word black
-    inc byte [row]
     mov [column], byte 0
     mov [fg_color], word red
     mov si, error
     call color_print
+    inc byte [row]
 
     ;delay 1/4 a second between each error
     mov [delay_time], byte 4
@@ -345,21 +411,27 @@ main:
     cmp [row], byte 10
     jne .errorLoop
 
+.checkpoint2:
     ;set delay back to normal printing speed
     ;DELETE ALL DRIVE CONTENTS?
     mov [delay_time], byte 1
-    inc byte [row]
     mov [column], byte 0
     mov [fg_color], word white
     mov si, msg2
     call color_print
+    inc byte [row]
 
     ;Choose (y/n):
-    inc byte [row]
     mov [column], byte 0
     mov [fg_color], word white
     mov si, qst
     call color_print
+
+    ;save state that we are at this point in case they attempt reboot
+    mov [turnoff2], byte 1
+    mov [write_sector], byte 2
+    mov [write_from], word seg2
+    call write_drive
 
     ;get y or n
     mov [fg_color], word cyan
@@ -367,6 +439,7 @@ main:
     mov [input_bound], byte 1
     mov [ignore_case], byte 1
     call user_input
+    inc byte [row]
 
     mov si, input
     mov di, ans
@@ -377,25 +450,30 @@ main:
     je .fakeDelete
 
     ;YOU ARE ABOUT TO DESTROY THE DRIVE AND ALL DATA WILL BE UNRECOVERABLE,
-    inc byte [row]
     mov [column], byte 0
     mov [fg_color], word brown
     mov si, msg3
     call color_print
+    inc byte [row]
 
     ;ARE YOU SURE YOU WANT TO DO THIS?
-    inc byte [row]
     mov [column], byte 0
     mov [fg_color], word brown
     mov si, msg4
     call color_print
+    inc byte [row]
 
     ;Choose (y/n):
-    inc byte [row]
     mov [column], byte 0
     mov [fg_color], word white
     mov si, qst
     call color_print
+
+    ;save state that we are at this point in case they attempt reboot
+    mov [turnoff3], byte 1
+    mov [write_sector], byte 2
+    mov [write_from], word seg2
+    call write_drive
 
     ;get user input
     mov [fg_color], word cyan
@@ -403,10 +481,10 @@ main:
     mov [input_bound], byte 1
     mov [ignore_case], byte 1
     call user_input
+    inc byte [row]
 
 .fakeDelete:
     ;DELETING DRIVE
-    inc byte [row]
     mov [column], byte 0
     call move_cursor
     mov [fg_color], word red
@@ -417,7 +495,18 @@ main:
     mov [delay_time], byte 32
     call delay
 
+.deleted:
+    mov [turnoff4], byte 1
+    mov [write_sector], byte 2
+    mov [write_from], word seg2
+    call write_drive
+
     call print_garbage
+
+    mov [beep_count], byte 1
+    mov [delay_time], byte 160    ;beep for 10 seconds
+    call beep
+
     cli
     hlt
 
@@ -459,7 +548,7 @@ print_hex:
 ; Beeps through speaker at specified time interval
 ; Arguments:
 ;   beep_count: Times to loop all beeps
-;   delay_time: Duration of each beep, for every 1 is 1/4 a second
+;   delay_time: Duration of each beep, for every 1 is 1/16 a second
 ;-------------------------------------------------------------------
 beep:
     pusha
@@ -522,7 +611,6 @@ compare_str:
     popa
     mov al, 0
     ret
-
 
 ;-------------------------------------------------------------------
 ; Writes a character, generally a helper function for printing functions
@@ -741,40 +829,16 @@ enable_blinking:
     popa
     ret
 
-;beep variables
-beep_count: db 1
-
-;input variables
-input:          times 20 db 0
-key_pressed:    db 0
-input_color:    db 0
-input_bound:    dw 0
-ignore_case:    db 0
-
-hex_table:      db '0123456789ABCDEF',0
-hex:            dw 0
-
-;test strings
-equalStr:       db 'Success',0
-fail:           db 'CRITICAL FAILURE',0
-attempt:        db 'Attempting repair',0
-noShutOff:      db 'DO NOT SHUT OFF COMPUTER',0
-ans:            db 'y',0
-msg1:           db 'DISK BOOT FAILURE, ATTEMPT REPAIR?',0
-msg2:           db 'DELETE ALL DRIVE CONTENTS?',0
 msg3:           db 'YOU ARE ABOUT TO DESTROY THE DRIVE AND ALL DATA WILL BE UNRECOVERABLE,',0
 msg4:           db 'ARE YOU SURE YOU WANT TO DO THIS?',0
 qst:            db 'Choose (y/n):',0
-turnOffMsg1:    db 'Computer was turned off midway through last session, doing something else',0
 warning:        db 'Warning',0
 WARN:           db 'WARNING',0
 error:          db 'ERROR',0
-critical:       db 'CRITICAL FAILURE',0
 deleting:       db 'DELETING DRIVE',0
-
-;write variables
-write_sector:   db 0
-write_from:     dw 0
+threat1:        db 'TURNING OFF THE COMPUTER COULD POSE SERIOUS DAMAGE TO DRIVE',0
+threat2:        db 'DRIVE HAS BECOME SIGNIFICANTLY UNSTABLE DUE TO SHUTOFF: DO NOT SHUTOFF AGAIN',0
+threat3:        db 'CRITICAL ERROR: DRIVE DESTABILIZED',0
 
 times 2048-($-$$) db 0      ;total of 4, 512 byte sectors
 
