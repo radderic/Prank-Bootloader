@@ -256,10 +256,9 @@ dw 0xaa55               ;boot signature
 ; Start of purpose here
 ;------------------------------------------
 seg2:
-;only one of these should be toggled at a time
-turnoff1:        db 0 ;checks if they turn off the computer to avoid
-turnoff2:        db 0 ;checks if they turn off the computer twice to avoid
-turnoff3:        db 0 ;checks if they turn off the computer thrice to avoid
+turnoff1:        db 0 ;check for shutoff during first question
+turnoff2:        db 0 ;check for shutoff during second question
+turnoff3:        db 0 ;check for shutoff during third question
 turnoff4:        db 0 ;if they made it to the end always start at end
 
 main:
@@ -782,7 +781,9 @@ set_fg_and_bg:
     popa
     ret
 
-;picks random memory location and prints it to screen, 0's are printed as spaces
+;-------------------------------------------------------------------
+; Picks random memory location and prints it to screen, 0's are printed as spaces
+;-------------------------------------------------------------------
 print_garbage:
     pusha
     push ds
